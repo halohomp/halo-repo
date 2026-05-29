@@ -55,7 +55,7 @@ if (status_code(login_attempt) == 200) {
   )
   
   # Masukkan tanggal Anda di sini
-  tgl_otomatis <- "2026-05-16" 
+  tgl_otomatis <- "2026-05-29" 
   tgl_awal <- tgl_otomatis    
   tgl_akhir <- tgl_otomatis
   
