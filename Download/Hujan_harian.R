@@ -31,7 +31,7 @@ img <- image_read(content(captcha_img, "raw"))
 print(img) 
 
 # ---> STOP SEMENTARA DI SINI: Masukkan Captcha <---
-jawaban_captcha <- "13" # GANTI ANGKA INI DENGAN HASIL DARI VIEWER!
+jawaban_captcha <- "-2" # GANTI ANGKA INI DENGAN HASIL DARI VIEWER!
 
 payload <- list(
   username = "balai1",              
@@ -55,7 +55,7 @@ if (status_code(login_attempt) == 200) {
   )
   
   # Masukkan tanggal Anda di sini
-  tgl_otomatis <- "2026-05-15" 
+  tgl_otomatis <- "2026-05-16" 
   tgl_awal <- tgl_otomatis    
   tgl_akhir <- tgl_otomatis
   
@@ -92,20 +92,27 @@ if (status_code(login_attempt) == 200) {
       tryCatch({
         raw_data <- read_excel(nama_file_raw)
         
-        # 1. FILTER TANGGAL & WAKTU (Sangat Penting)
+        # PAKSA semua nama kolom menjadi huruf kecil agar R tidak tertipu
+        names(raw_data) <- tolower(names(raw_data))
+        
+        # 1. FILTER TANGGAL & WAKTU (Pasti tereksekusi sekarang!)
         if ("tanggal" %in% names(raw_data)) {
-          # WAJIB: Saring agar R HANYA membaca baris data pada tanggal yang Anda input
-          raw_data <- raw_data[grepl(tgl_otomatis, as.character(raw_data$tanggal)), ]
           
-          # Buang jam 00:00 (Hujan milik hari sebelumnya)
-          raw_data <- raw_data[!grepl("00:00", as.character(raw_data$tanggal)), ]
+          waktu_aktual <- as.POSIXct(raw_data$tanggal, tz = "UTC")
+          jam_aktual <- format(waktu_aktual, "%H")
+          tanggal_aktual <- format(waktu_aktual, "%Y-%m-%d")
+          
+          # EKSEKUSI: Ambil HANYA tanggal yang diinput, DAN buang jam 00
+          filter_kondisi <- (tanggal_aktual == tgl_otomatis) & (jam_aktual != "00")
+          
+          # Terapkan filter
+          raw_data <- raw_data[which(filter_kondisi), ]
         }
         
         # 2. CARI MAKSIMUM
         if ("rr" %in% names(raw_data)) {
           kolom_rr <- as.numeric(raw_data$rr) 
           
-          # Mencegah error jika ternyata pada tanggal tersebut stasiun sedang mati (kosong)
           if(length(kolom_rr) == 0 || all(is.na(kolom_rr))) {
             daftar_stasiun$RR_Maks_Harian[i] <- 0
           } else {
@@ -121,12 +128,12 @@ if (status_code(login_attempt) == 200) {
       }, error = function(e){
         print(paste("        -> Error R:", e$message))
       })
-    } else {
+    } else { # INI KURUNG PENUTUP UNDUHAN YANG HILANG
       print("        -> GAGAL diunduh dari server AWS.")
     }
     
     Sys.sleep(2) 
-  }
+  } # INI KURUNG PENUTUP PERULANGAN STASIUN (FOR LOOP) YANG HILANG
   
   # ==========================================
   # BAGIAN 4: SIMPAN REKAPITULASI
