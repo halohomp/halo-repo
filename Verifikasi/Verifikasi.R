@@ -39,7 +39,7 @@ img <- image_read(content(captcha_img, "raw"))
 print(img) 
 
 # ---> STOP SEMENTARA DI SINI: Masukkan Captcha <---
-jawaban_captcha <- "-4" # GANTI ANGKA INI DENGAN HASIL DARI VIEWER!
+jawaban_captcha <- "11" # GANTI ANGKA INI DENGAN HASIL DARI VIEWER!
 
 payload <- list(
   username = "balai1",              
@@ -66,7 +66,7 @@ daftar_stasiun <- data.frame(
 )
 
 # Masukkan tanggal Anda di sini
-tgl_otomatis <- "2026-05-29" 
+tgl_otomatis <- "2026-05-30" 
 tgl_awal <- tgl_otomatis    
 tgl_akhir <- tgl_otomatis
 
@@ -167,26 +167,26 @@ zoom_end   <- ymd_hms(paste0(tgl_besok, " 07:00:00"), tz = "Asia/Jakarta")
 
 # A. Parameter Peringatan Dini PERTAMA (Sesuaikan jam aktual manual setiap harinya)
 row_peringatan1 <- data.frame(
-  waktu_rilis  = ymd_hms(paste0(tgl_otomatis, " 14:00:00"), tz = "Asia/Jakarta"), 
-  mulai_pred   = ymd_hms(paste0(tgl_otomatis, " 14:10:00"), tz = "Asia/Jakarta"), 
-  akhir_pred   = ymd_hms(paste0(tgl_otomatis, " 17:10:00"), tz = "Asia/Jakarta"), 
-  label_rilis  = "Peringatan Dini\n14:00 WIB" 
+  waktu_rilis  = ymd_hms(paste0(tgl_otomatis, " 14:40:00"), tz = "Asia/Jakarta"), 
+  mulai_pred   = ymd_hms(paste0(tgl_otomatis, " 15:10:00"), tz = "Asia/Jakarta"), 
+  akhir_pred   = ymd_hms(paste0(tgl_otomatis, " 18:10:00"), tz = "Asia/Jakarta"), 
+  label_rilis  = "Peringatan Dini\n14:40 WIB" 
 )
 
 # B. Parameter Peringatan Dini UPDATE 1
 row_peringatan2 <- data.frame(
-  waktu_rilis  = ymd_hms(paste0(tgl_otomatis, " 16:30:00"), tz = "Asia/Jakarta"),
-  mulai_pred   = ymd_hms(paste0(tgl_otomatis, " 17:00:00"), tz = "Asia/Jakarta"),
-  akhir_pred   = ymd_hms(paste0(tgl_otomatis, " 20:00:00"), tz = "Asia/Jakarta"), 
-  label_rilis  = "Update Peringatan\n16:30 WIB"
+  waktu_rilis  = ymd_hms(paste0(tgl_otomatis, " 18:00:00"), tz = "Asia/Jakarta"),
+  mulai_pred   = ymd_hms(paste0(tgl_otomatis, " 18:30:00"), tz = "Asia/Jakarta"),
+  akhir_pred   = ymd_hms(paste0(tgl_otomatis, " 21:30:00"), tz = "Asia/Jakarta"), 
+  label_rilis  = "Update Peringatan\n18:00 WIB"
 )
 
 # C. Parameter Peringatan Dini UPDATE 2 
 row_peringatan3 <- data.frame(
-  waktu_rilis  = ymd_hms(paste0(tgl_otomatis, " 19:15:00"), tz = "Asia/Jakarta"),
-  mulai_pred   = ymd_hms(paste0(tgl_otomatis, " 19:30:00"), tz = "Asia/Jakarta"),
-  akhir_pred   = ymd_hms(paste0(tgl_otomatis, " 22:30:00"), tz = "Asia/Jakarta"), 
-  label_rilis  = "Update Ke-2\n19:15 WIB"
+  waktu_rilis  = ymd_hms(paste0(tgl_otomatis, " 20:00:00"), tz = "Asia/Jakarta"),
+  mulai_pred   = ymd_hms(paste0(tgl_otomatis, " 20:30:00"), tz = "Asia/Jakarta"),
+  akhir_pred   = ymd_hms(paste0(tgl_otomatis, " 23:30:00"), tz = "Asia/Jakarta"), 
+  label_rilis  = "Update Ke-2\n20:00 WIB"
 )
 
 # Membaca Otomatis 3 File Teks Peringatan dari folder yang sama
