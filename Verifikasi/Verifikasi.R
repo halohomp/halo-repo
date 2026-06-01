@@ -222,7 +222,7 @@ kamus_kecamatan <- c(
   "Sei_Rejo"     = "Sei Rampah",
   "Batubara"     = "Air Putih",
   "Deli Serdang" = "Pagar Merbau",     # Untuk stasiun STA3032
-  "Deliserdang"  = "Pagar Merbau",     # Untuk stasiun STA2068
+  "Deliserdang"  = "Medan Tembung",    # Untuk stasiun STA6005
   "Sinabung"     = "Tiganderket",
   "Kualanamu"    = "Beringin",
   "Silangit"     = "Siborong-borong",
