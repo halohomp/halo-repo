@@ -39,7 +39,7 @@ img <- image_read(content(captcha_img, "raw"))
 print(img) 
 
 # ---> STOP SEMENTARA DI SINI: Masukkan Captcha <---
-jawaban_captcha <- "11" # GANTI ANGKA INI DENGAN HASIL DARI VIEWER!
+jawaban_captcha <- "7" # GANTI ANGKA INI DENGAN HASIL DARI VIEWER!
 
 payload <- list(
   username = "balai1",              
@@ -66,7 +66,7 @@ daftar_stasiun <- data.frame(
 )
 
 # Masukkan tanggal Anda di sini
-tgl_otomatis <- "2026-05-30" 
+tgl_otomatis <- "2026-05-31" 
 tgl_awal <- tgl_otomatis    
 tgl_akhir <- tgl_otomatis
 
@@ -157,7 +157,7 @@ print("=========================================================")
 # TAHAP 4: VISUALISASI CURAH HUJAN & EXPORT PDF (OTOMATIS TERSAMBUNG)
 # ==============================================================================
 
-# PENYEMPURNAAN: Sumbu waktu dihitung otomatis berdasarkan variabel tgl_otomatis
+# 1. SETUP WAKTU DAN ZOOM GRAFIK
 tgl_besok <- as.Date(tgl_otomatis) + 1
 start_time <- ymd_hms(paste0(tgl_otomatis, " 00:01:00"), tz = "UTC")
 end_time   <- ymd_hms(paste0(tgl_besok, " 00:00:00"), tz = "UTC")
@@ -165,31 +165,32 @@ end_time   <- ymd_hms(paste0(tgl_besok, " 00:00:00"), tz = "UTC")
 zoom_start <- ymd_hms(paste0(tgl_otomatis, " 07:00:00"), tz = "Asia/Jakarta")
 zoom_end   <- ymd_hms(paste0(tgl_besok, " 07:00:00"), tz = "Asia/Jakarta") 
 
-# A. Parameter Peringatan Dini PERTAMA (Sesuaikan jam aktual manual setiap harinya)
+# 2. PARAMETER PERINGATAN DINI (Sesuaikan jam aktual manual setiap harinya)
+# A. Peringatan Dini PERTAMA
 row_peringatan1 <- data.frame(
-  waktu_rilis  = ymd_hms(paste0(tgl_otomatis, " 14:40:00"), tz = "Asia/Jakarta"), 
-  mulai_pred   = ymd_hms(paste0(tgl_otomatis, " 15:10:00"), tz = "Asia/Jakarta"), 
+  waktu_rilis  = ymd_hms(paste0(tgl_otomatis, " 16:10:00"), tz = "Asia/Jakarta"), 
+  mulai_pred   = ymd_hms(paste0(tgl_otomatis, " 16:40:00"), tz = "Asia/Jakarta"), 
   akhir_pred   = ymd_hms(paste0(tgl_otomatis, " 18:10:00"), tz = "Asia/Jakarta"), 
-  label_rilis  = "Peringatan Dini\n14:40 WIB" 
+  label_rilis  = "Peringatan Dini\n16:40 WIB" 
 )
 
-# B. Parameter Peringatan Dini UPDATE 1
+# B. Update Peringatan Dini 1
 row_peringatan2 <- data.frame(
-  waktu_rilis  = ymd_hms(paste0(tgl_otomatis, " 18:00:00"), tz = "Asia/Jakarta"),
-  mulai_pred   = ymd_hms(paste0(tgl_otomatis, " 18:30:00"), tz = "Asia/Jakarta"),
-  akhir_pred   = ymd_hms(paste0(tgl_otomatis, " 21:30:00"), tz = "Asia/Jakarta"), 
-  label_rilis  = "Update Peringatan\n18:00 WIB"
+  waktu_rilis  = ymd_hms(paste0(tgl_otomatis, " 19:00:00"), tz = "Asia/Jakarta"),
+  mulai_pred   = ymd_hms(paste0(tgl_otomatis, " 19:30:00"), tz = "Asia/Jakarta"),
+  akhir_pred   = ymd_hms(paste0(tgl_otomatis, " 22:30:00"), tz = "Asia/Jakarta"), 
+  label_rilis  = "Update Peringatan\n19:00 WIB"
 )
 
-# C. Parameter Peringatan Dini UPDATE 2 
+# C. Update Peringatan Dini 2 (SUDAH DIPERBAIKI: Melewati tengah malam)
 row_peringatan3 <- data.frame(
-  waktu_rilis  = ymd_hms(paste0(tgl_otomatis, " 20:00:00"), tz = "Asia/Jakarta"),
-  mulai_pred   = ymd_hms(paste0(tgl_otomatis, " 20:30:00"), tz = "Asia/Jakarta"),
-  akhir_pred   = ymd_hms(paste0(tgl_otomatis, " 23:30:00"), tz = "Asia/Jakarta"), 
-  label_rilis  = "Update Ke-2\n20:00 WIB"
+  waktu_rilis  = ymd_hms(paste0(tgl_otomatis, " 22:30:00"), tz = "Asia/Jakarta"),
+  mulai_pred   = ymd_hms(paste0(tgl_otomatis, " 23:00:00"), tz = "Asia/Jakarta"),
+  akhir_pred   = ymd_hms(paste0(tgl_besok, " 03:30:00"), tz = "Asia/Jakarta"), 
+  label_rilis  = "Update Ke-2\n22:30 WIB"
 )
 
-# Membaca Otomatis 3 File Teks Peringatan dari folder yang sama
+# 3. MEMBACA OTOMATIS FILE TEKS PERINGATAN
 file_teks1 <- paste0(folder_simpan, "peringatan.txt")
 if (file.exists(file_teks1)) { teks_peringatan1 <- paste(readLines(file_teks1, warn = FALSE), collapse = " ")
 } else { teks_peringatan1 <- ""; cat("Warning: peringatan.txt tidak ditemukan.\n") }
@@ -202,12 +203,37 @@ file_teks3 <- paste0(folder_simpan, "update2.txt")
 if (file.exists(file_teks3)) { teks_peringatan3 <- paste(readLines(file_teks3, warn = FALSE), collapse = " ")
 } else { teks_peringatan3 <- ""; cat("Warning: update2.txt tidak ditemukan.\n") }
 
-# Fungsi Pembuat Grafik
+# 4. KAMUS ALIAS KECAMATAN PENCARIAN
+# (R akan menggunakan nama di sebelah kanan untuk mencari di teks peringatan dini notepad)
+kamus_kecamatan <- c(
+  "Aek Godang"   = "Batang Onang",
+  "Bah Jambi"    = "Jawa Maraja Bah Jambi",
+  "Sei_Rejo"     = "Sei Rampah",
+  "Batubara"     = "Air Putih",
+  "Deli Serdang" = "Pagar Merbau",     # Untuk stasiun STA3032
+  "Deliserdang"  = "Pagar Merbau",     # Untuk stasiun STA2068
+  "Sinabung"     = "Tiganderket",
+  "Kualanamu"    = "Beringin",
+  "Silangit"     = "Siborong-borong",
+  "Tigaras"      = "Dolok Pardamean"
+)
+
+# 5. FUNGSI PEMBUAT GRAFIK
 buat_grafik_stasiun <- function(file_path, nama_stasiun) {
   
-  ada_1 <- str_detect(tolower(teks_peringatan1), tolower(nama_stasiun))
-  ada_2 <- str_detect(tolower(teks_peringatan2), tolower(nama_stasiun))
-  ada_3 <- str_detect(tolower(teks_peringatan3), tolower(nama_stasiun))
+  # Menentukan kata kunci pencarian dinamis (Cek kamus kecamatan)
+  kata_kunci <- nama_stasiun
+  if (nama_stasiun %in% names(kamus_kecamatan)) {
+    kata_kunci <- kamus_kecamatan[[nama_stasiun]]
+  }
+  
+  # PERBAIKAN: Tambahkan batas kata (\\b) agar R mencari kata/frasa yang persis (exact match)
+  regex_kunci <- paste0("\\b", tolower(kata_kunci), "\\b")
+  
+  # Cek keberadaan kata kunci yang sudah presisi di file teks
+  ada_1 <- str_detect(tolower(teks_peringatan1), regex_kunci)
+  ada_2 <- str_detect(tolower(teks_peringatan2), regex_kunci)
+  ada_3 <- str_detect(tolower(teks_peringatan3), regex_kunci)
   
   tabel_plot <- bind_rows(
     if(ada_1) row_peringatan1 else NULL,
@@ -271,7 +297,10 @@ buat_grafik_stasiun <- function(file_path, nama_stasiun) {
     geom_text(aes(x = with_tz(waktu_terakhir, "Asia/Jakarta"), y = total_akumulatif / scale_factor, label = paste0(round(total_akumulatif, 1), " mm")), color = "#d62728", fontface = "bold", size = 2.5, hjust = 1.1, vjust = -1, show.legend = FALSE) +
     scale_y_continuous(name = "CH /10 Menit (mm)", limits = c(0, batas_kiri), breaks = grid_kiri, expand = expansion(mult = c(0, 0.08)), sec.axis = sec_axis(~ . * scale_factor, name = "Akumulasi (mm)", breaks = grid_kanan)) +
     scale_x_datetime(date_breaks = "2 hours", date_labels = "%H:%M", expand = expansion(mult = c(0.02, 0.05)), timezone = "Asia/Jakarta") +
+    
+    # NAMA STASIUN TETAP MUNCUL DI JUDUL GRAFIK (Tidak berubah menjadi nama kecamatan)
     labs(title = toupper(nama_stasiun), x = "Waktu (WIB)", subtitle = NULL) +
+    
     scale_color_manual(name = "", values = c("Curah Hujan Per 10 Menit" = "#1f77b4", "Akumulatif Rainfall" = "#d62728"), drop = FALSE, guide = guide_legend(override.aes = list(linetype = c("solid", "solid"), shape = c(NA, NA), linewidth = c(1.5, 1.2)))) +
     coord_cartesian(xlim = c(zoom_start, zoom_end), clip = "off") + 
     theme_minimal() +
@@ -298,25 +327,41 @@ buat_grafik_stasiun <- function(file_path, nama_stasiun) {
   return(plot_final)
 }
 
-# Eksekusi Pengumpulan Grafik
-# PERHATIKAN: Kita memfilter file Excel, dan mengecualikan file Rekap
-daftar_file <- list.files(path = folder_simpan, pattern = "\\.xlsx$", full.names = TRUE)
-daftar_file <- daftar_file[!grepl("REKAP", daftar_file)] 
+# 6. EKSEKUSI PENGUMPULAN GRAFIK & EXPORT PDF (URUT DARI HUJAN TERTINGGI)
+
+cat("\nMembaca file rekap untuk menentukan urutan grafik...\n")
+nama_file_rekap <- paste0(folder_simpan, "REKAP_Curah_Hujan_", tgl_otomatis, ".xlsx")
+
+# Membaca data rekap dan mengurutkannya dari RR_Maks_Harian terbesar ke terkecil
+tabel_rekap <- suppressMessages(read_excel(nama_file_rekap))
+tabel_rekap_urut <- tabel_rekap %>% arrange(desc(RR_Maks_Harian))
+
+# Membuat daftar jalur (path) file Excel berdasarkan urutan curah hujan
+daftar_file_urut <- paste0(folder_simpan, tabel_rekap_urut$nama, ".xlsx")
+# Memastikan hanya memproses file yang benar-benar berhasil terunduh (ada di folder)
+daftar_file_urut <- daftar_file_urut[file.exists(daftar_file_urut)]
 
 list_semua_grafik <- list()
 
-cat("\nMulai memproses pembuatan grafik dari file Excel...\n")
-for (file_path in daftar_file) {
+cat("Mulai memproses pembuatan grafik sesuai urutan curah hujan tertinggi...\n")
+for (file_path in daftar_file_urut) {
   nama_stasiun_bersih <- file_path_sans_ext(basename(file_path)) 
   
   plot_stasiun <- buat_grafik_stasiun(file_path = file_path, nama_stasiun = nama_stasiun_bersih)
   list_semua_grafik[[nama_stasiun_bersih]] <- plot_stasiun
   
+  # Tambahkan informasi urutan di console agar mudah dipantau
   cat("Memproses Plot:", nama_stasiun_bersih, "\n")
 }
 
+
 # Eksport menjadi Laporan PDF A4
 cat("\nMenyusun tata letak PDF. Harap tunggu sebentar...\n")
+
+# Proteksi 1: Cek apakah ada grafik yang berhasil dibuat
+if(length(list_semua_grafik) == 0) {
+  stop("GAGAL: Tidak ada grafik yang terbentuk! Cek apakah file Excel stasiun kosong.")
+}
 
 layout_pdf <- marrangeGrob(
   grobs = list_semua_grafik, 
@@ -326,16 +371,22 @@ layout_pdf <- marrangeGrob(
 )
 
 nama_pdf <- paste0(folder_plot, "Laporan_Curah_Hujan_", tgl_otomatis, ".pdf")
-suppressWarnings(ggsave(
-  filename = nama_pdf, 
-  plot = layout_pdf, 
-  width = 8.27,  
-  height = 11.69, 
-  units = "in",
-  dpi = 300
-))
 
-cat("\n=======================================================\n")
-cat("SELESAI TOTAL! File Raw, Rekap Excel, dan PDF Laporan \nberhasil tersimpan di folder:\n")
-cat(folder_simpan, "\n")
-cat("=======================================================\n")
+# Proteksi 2: Matikan semua device grafik nyangkut sebelum mulai menulis
+graphics.off() 
+
+# Proteksi 3: TryCatch untuk memastikan file PDF selalu ditutup dengan dev.off()
+tryCatch({
+  pdf(file = nama_pdf, width = 8.27, height = 11.69)
+  print(layout_pdf)
+  invisible(dev.off()) # Menutup dan menyimpan file PDF
+  
+  cat("\n=======================================================\n")
+  cat("SELESAI TOTAL! Laporan PDF sudah terurut dari CH Tertinggi.\nLokasi File:\n")
+  cat(nama_pdf, "\n")
+  cat("=======================================================\n")
+  
+}, error = function(e) {
+  graphics.off() 
+  cat("\nERROR SAAT MENYIMPAN PDF: ", e$message, "\n")
+})

@@ -1,5 +1,5 @@
 # =====================================================================
-# SCRIPT VISUALISASI SUHU UDARA: 3 HARI (10 MENIT) - X-AXIS 3 JAM & GRID KECIL
+# SCRIPT VISUALISASI SUHU UDARA: 3 HARI (10 MENIT) - SORTING SUHU
 # =====================================================================
 
 # 1. Load Library
@@ -18,7 +18,7 @@ folder_sumber <- c(
 folder_simpan <- "D:/Cuhar/31May26/plot" 
 dir.create(folder_simpan, recursive = TRUE, showWarnings = FALSE)
 
-target_stasiun <- c("KNO", "Tigaras", "Silangit", "Aek Godang", "Sosa", "Hinai", "Bah Jambi")
+target_stasiun_awal <- c("KNO", "Tigaras", "Silangit", "Aek Godang", "Sosa", "Hinai", "Bah Jambi")
 
 # 3. Membaca Seluruh Data dari 3 Folder
 message("Mengumpulkan data suhu udara beresolusi 10 menit (3 Hari)...")
@@ -72,11 +72,28 @@ data_suhu_kontinyu <- data_suhu_kontinyu %>%
     )
   ) %>%
   filter(!is.na(Nama_Clean)) %>%
-  mutate(`Nama Stasiun` = factor(Nama_Clean, levels = target_stasiun))
+  mutate(`Nama Stasiun` = Nama_Clean) 
 
 # ==========================================================
-# 5. PENGATURAN BATAS WAKTU (Diperpanjang hingga 07:00 WIB)
+# FITUR BARU: Mengurutkan Stasiun dari Terpanas ke Terdingin
 # ==========================================================
+urutan_suhu <- data_suhu_kontinyu %>%
+  group_by(`Nama Stasiun`) %>%
+  # Menghitung rata-rata suhu keseluruhan per stasiun
+  summarise(Suhu_Keseluruhan = mean(Suhu_Rata, na.rm = TRUE)) %>%
+  # Mengurutkan dari nilai yang paling tinggi (descending)
+  arrange(desc(Suhu_Keseluruhan)) %>%
+  pull(`Nama Stasiun`)
+
+# Mengunci urutan array berdasarkan hasil sorting suhu
+data_suhu_kontinyu <- data_suhu_kontinyu %>%
+  mutate(`Nama Stasiun` = factor(`Nama Stasiun`, levels = urutan_suhu))
+
+target_stasiun_urut <- as.character(urutan_suhu)
+
+message(">> Info: Urutan stasiun dari terpanas ke terdingin adalah: ", paste(target_stasiun_urut, collapse = ", "))
+
+# 5. PENGATURAN BATAS WAKTU (Diperpanjang hingga 07:00 WIB)
 waktu_mulai   <- as.POSIXct("2026-05-29 07:00:00", tz = "Asia/Jakarta")
 waktu_selesai <- as.POSIXct("2026-06-01 07:00:00", tz = "Asia/Jakarta")
 garis_hari_meteorologi <- seq(waktu_mulai, waktu_selesai, by = "24 hours")
@@ -105,7 +122,8 @@ label_waktu_tengah <- function(waktu_vektor) {
 lokasi_pdf <- file.path(folder_simpan, "Grafik_Suhu_3Hari_PerStasiun.pdf")
 pdf(file = lokasi_pdf, width = 11.69, height = 8.27)
 
-stasiun_chunks <- split(target_stasiun, ceiling(seq_along(target_stasiun) / 4))
+# Menggunakan target_stasiun_urut yang sudah di-sorting
+stasiun_chunks <- split(target_stasiun_urut, ceiling(seq_along(target_stasiun_urut) / 4))
 
 for (i in seq_along(stasiun_chunks)) {
   
@@ -116,7 +134,6 @@ for (i in seq_along(stasiun_chunks)) {
   
   plot_halaman <- ggplot(data_subset, aes(x = Waktu_10m, y = Suhu_Rata, color = `Nama Stasiun`)) +
     
-    # Garis pemisah Hari Meteorologi dipertegas sedikit agar tidak kalah dengan minor grid
     geom_vline(xintercept = garis_hari_meteorologi, linetype = "dashed", color = "gray40", linewidth = 0.7) +
     
     geom_line(linewidth = 0.6, alpha = 0.9) +
@@ -125,21 +142,18 @@ for (i in seq_along(stasiun_chunks)) {
     facet_wrap(~ `Nama Stasiun`, ncol = 1, scales = "free_y") +
     scale_color_brewer(palette = "Set1") +
     
-    # ==========================================================
-  # PERUBAHAN: Sumbu X per 3 jam, dengan minor grid per 1 jam
-  # ==========================================================
-  scale_x_datetime(
-    breaks = seq(waktu_mulai, waktu_selesai, by = "3 hours"), 
-    date_minor_breaks = "1 hour",
-    labels = label_waktu_tengah,                              
-    expand = c(0.01, 0)
-  ) +
+    scale_x_datetime(
+      breaks = seq(waktu_mulai, waktu_selesai, by = "3 hours"), 
+      date_minor_breaks = "1 hour",
+      labels = label_waktu_tengah,                              
+      expand = c(0.01, 0)
+    ) +
     
     scale_y_continuous(breaks = seq(10, 40, by = 2), minor_breaks = seq(10, 40, by = 1)) +
     
     labs(
-      title = "Suhu Udara Berdasarkan Stasiun ARG,AWS dan AAWS SUMUT (Resolusi 10 Menit)",
-      subtitle = paste("Halaman", i, "| Periode: 29 - 31 Mei 2026 | Garis Vertikal: 07:00 WIB"),
+      title = "Suhu Udara Berdasarkan Stasiun ARG, AWS dan AAWS SUMUT (Resolusi 10 Menit)",
+      subtitle = paste("Halaman", i, "| Periode: 29 - 31 Mei 2026 | Garis Vertikal: 07:00 WIB | Diurutkan dari Terpanas ke Terdingin"),
       x = "Waktu Pengamatan (WIB)",
       y = "Suhu Udara (°C)"
     ) +
@@ -157,9 +171,6 @@ for (i in seq_along(stasiun_chunks)) {
       strip.background = element_rect(fill = "#34495E"),
       strip.text = element_text(color = "white", face = "bold", size = 11, margin = margin(t = 5, b = 5)),
       
-      # ==========================================================
-      # PERUBAHAN: Menyalakan panel.grid.minor agar kotak-kotaknya terlihat lebih kecil
-      # ==========================================================
       panel.grid.major.y = element_line(color = "gray80", linewidth = 0.4),
       panel.grid.major.x = element_line(color = "gray80", linewidth = 0.4),
       panel.grid.minor.y = element_line(color = "gray92", linewidth = 0.2),
@@ -174,4 +185,4 @@ for (i in seq_along(stasiun_chunks)) {
 dev.off()
 
 message("=========================================================")
-message("BERHASIL! Sumbu X dikunci di jam 07:00, grid kecil aktif, PDF tersimpan di: ", lokasi_pdf)
+message("BERHASIL! Stasiun telah diurutkan berdasarkan suhu tertinggi, PDF tersimpan di: ", lokasi_pdf)
