@@ -165,32 +165,7 @@ end_time   <- ymd_hms(paste0(tgl_besok, " 00:00:00"), tz = "UTC")
 zoom_start <- ymd_hms(paste0(tgl_otomatis, " 07:00:00"), tz = "Asia/Jakarta")
 zoom_end   <- ymd_hms(paste0(tgl_besok, " 07:00:00"), tz = "Asia/Jakarta") 
 
-# 2. PARAMETER PERINGATAN DINI (Sesuaikan jam aktual manual setiap harinya)
-# A. Peringatan Dini PERTAMA
-row_peringatan1 <- data.frame(
-  waktu_rilis  = ymd_hms(paste0(tgl_otomatis, " 16:10:00"), tz = "Asia/Jakarta"), 
-  mulai_pred   = ymd_hms(paste0(tgl_otomatis, " 16:40:00"), tz = "Asia/Jakarta"), 
-  akhir_pred   = ymd_hms(paste0(tgl_otomatis, " 18:10:00"), tz = "Asia/Jakarta"), 
-  label_rilis  = "Peringatan Dini\n16:40 WIB" 
-)
-
-# B. Update Peringatan Dini 1
-row_peringatan2 <- data.frame(
-  waktu_rilis  = ymd_hms(paste0(tgl_otomatis, " 19:00:00"), tz = "Asia/Jakarta"),
-  mulai_pred   = ymd_hms(paste0(tgl_otomatis, " 19:30:00"), tz = "Asia/Jakarta"),
-  akhir_pred   = ymd_hms(paste0(tgl_otomatis, " 22:30:00"), tz = "Asia/Jakarta"), 
-  label_rilis  = "Update Peringatan\n19:00 WIB"
-)
-
-# C. Update Peringatan Dini 2 (SUDAH DIPERBAIKI: Melewati tengah malam)
-row_peringatan3 <- data.frame(
-  waktu_rilis  = ymd_hms(paste0(tgl_otomatis, " 22:30:00"), tz = "Asia/Jakarta"),
-  mulai_pred   = ymd_hms(paste0(tgl_otomatis, " 23:00:00"), tz = "Asia/Jakarta"),
-  akhir_pred   = ymd_hms(paste0(tgl_besok, " 03:30:00"), tz = "Asia/Jakarta"), 
-  label_rilis  = "Update Ke-2\n22:30 WIB"
-)
-
-# 3. MEMBACA OTOMATIS FILE TEKS PERINGATAN
+# 2. MEMBACA OTOMATIS FILE TEKS PERINGATAN (DIPINDAH KE ATAS)
 file_teks1 <- paste0(folder_simpan, "peringatan.txt")
 if (file.exists(file_teks1)) { teks_peringatan1 <- paste(readLines(file_teks1, warn = FALSE), collapse = " ")
 } else { teks_peringatan1 <- ""; cat("Warning: peringatan.txt tidak ditemukan.\n") }
@@ -202,6 +177,42 @@ if (file.exists(file_teks2)) { teks_peringatan2 <- paste(readLines(file_teks2, w
 file_teks3 <- paste0(folder_simpan, "update2.txt")
 if (file.exists(file_teks3)) { teks_peringatan3 <- paste(readLines(file_teks3, warn = FALSE), collapse = " ")
 } else { teks_peringatan3 <- ""; cat("Warning: update2.txt tidak ditemukan.\n") }
+
+# 3. FUNGSI EKSTRAKSI WAKTU OTOMATIS DARI TEKS
+ekstrak_waktu_peringatan <- function(teks, label_prefix) {
+  if (teks == "") return(NULL)
+  
+  # Regex: Mencari kata "pkl" atau "pkl.", diikuti spasi, lalu format jam HH:MM
+  pola_regex <- "pkl\\.?\\s*([0-9]{2}:[0-9]{2})"
+  waktu_terekstrak <- str_match_all(tolower(teks), pola_regex)[[1]][,2]
+  
+  # Pastikan R menemukan setidaknya 3 waktu dalam teks
+  if (length(waktu_terekstrak) < 3) return(NULL)
+  
+  jam_rilis <- waktu_terekstrak[1]
+  jam_mulai <- waktu_terekstrak[2]
+  jam_akhir <- waktu_terekstrak[3]
+  
+  waktu_rilis_dt <- ymd_hms(paste0(tgl_otomatis, " ", jam_rilis, ":00"), tz = "Asia/Jakarta")
+  mulai_pred_dt  <- ymd_hms(paste0(tgl_otomatis, " ", jam_mulai, ":00"), tz = "Asia/Jakarta")
+  akhir_pred_dt  <- ymd_hms(paste0(tgl_otomatis, " ", jam_akhir, ":00"), tz = "Asia/Jakarta")
+  
+  # Cerdas Lintas Hari: Jika jam mulai < jam rilis (misal rilis 23:50, mulai 00:10)
+  if (mulai_pred_dt < waktu_rilis_dt) mulai_pred_dt <- mulai_pred_dt + days(1)
+  
+  # Cerdas Lintas Hari: Jika jam akhir < jam mulai (misal mulai 23:00, akhir 03:00)
+  if (akhir_pred_dt < mulai_pred_dt) akhir_pred_dt <- akhir_pred_dt + days(1)
+  
+  label_rilis <- paste0(label_prefix, "\n", jam_rilis, " WIB")
+  
+  return(data.frame(
+    waktu_rilis = waktu_rilis_dt,
+    mulai_pred  = mulai_pred_dt,
+    akhir_pred  = akhir_pred_dt,
+    label_rilis = label_rilis,
+    stringsAsFactors = FALSE
+  ))
+}
 
 # 4. KAMUS ALIAS KECAMATAN PENCARIAN
 # (R akan menggunakan nama di sebelah kanan untuk mencari di teks peringatan dini notepad)
@@ -327,38 +338,68 @@ buat_grafik_stasiun <- function(file_path, nama_stasiun) {
   return(plot_final)
 }
 
-# 6. EKSEKUSI PENGUMPULAN GRAFIK & EXPORT PDF (URUT DARI HUJAN TERTINGGI)
+# 6. EKSEKUSI PENGUMPULAN GRAFIK & EXPORT PDF (URUT BERDASARKAN VERIFIKASI)
 
-cat("\nMembaca file rekap untuk menentukan urutan grafik...\n")
+cat("\nMembaca file rekap dan mengecek status peringatan dini untuk penentuan urutan...\n")
 nama_file_rekap <- paste0(folder_simpan, "REKAP_Curah_Hujan_", tgl_otomatis, ".xlsx")
-
-# Membaca data rekap dan mengurutkannya dari RR_Maks_Harian terbesar ke terkecil
 tabel_rekap <- suppressMessages(read_excel(nama_file_rekap))
-tabel_rekap_urut <- tabel_rekap %>% arrange(desc(RR_Maks_Harian))
 
-# Membuat daftar jalur (path) file Excel berdasarkan urutan curah hujan
+# Fungsi pembantu untuk mengecek apakah stasiun masuk dalam teks peringatan dini
+cek_peringatan <- function(nama_stasiun) {
+  kata_kunci <- nama_stasiun
+  if (nama_stasiun %in% names(kamus_kecamatan)) {
+    kata_kunci <- kamus_kecamatan[[nama_stasiun]]
+  }
+  regex_kunci <- paste0("\\b", tolower(kata_kunci), "\\b")
+  
+  ada_1 <- str_detect(tolower(teks_peringatan1), regex_kunci)
+  ada_2 <- str_detect(tolower(teks_peringatan2), regex_kunci)
+  ada_3 <- str_detect(tolower(teks_peringatan3), regex_kunci)
+  
+  return(ada_1 | ada_2 | ada_3) # TRUE jika ada di salah satu teks
+}
+
+# Mengolah tabel rekap untuk menentukan kategori dan urutan
+tabel_rekap_urut <- tabel_rekap %>%
+  mutate(
+    # Ganti NA menjadi 0 agar perhitungan tidak error
+    RR_Maks_Harian = replace_na(RR_Maks_Harian, 0),
+    # Cek status peringatan dini untuk setiap baris stasiun
+    Ada_Peringatan = sapply(nama, cek_peringatan),
+    # Buat Kategori Prioritas Verifikasi
+    Kategori_Urutan = case_when(
+      RR_Maks_Harian > 0 ~ 1,                                # Prioritas 1: Ada hujan
+      RR_Maks_Harian == 0 & Ada_Peringatan == TRUE ~ 2,      # Prioritas 2: False Alarm (Ada peringatan, tidak hujan)
+      TRUE ~ 3                                               # Prioritas 3: Aman (Tidak peringatan, tidak hujan)
+    )
+  ) %>%
+  # Mengurutkan berdasarkan Kategori (1 -> 2 -> 3), lalu Curah Hujan (Tertinggi -> Terendah)
+  arrange(Kategori_Urutan, desc(RR_Maks_Harian))
+
+# Membuat daftar jalur (path) file Excel berdasarkan urutan yang sudah dibuat
 daftar_file_urut <- paste0(folder_simpan, tabel_rekap_urut$nama, ".xlsx")
-# Memastikan hanya memproses file yang benar-benar berhasil terunduh (ada di folder)
+# Memastikan hanya memproses file yang benar-benar berhasil terunduh
 daftar_file_urut <- daftar_file_urut[file.exists(daftar_file_urut)]
 
 list_semua_grafik <- list()
 
-cat("Mulai memproses pembuatan grafik sesuai urutan curah hujan tertinggi...\n")
+cat("Mulai memproses pembuatan grafik sesuai prioritas verifikasi...\n")
 for (file_path in daftar_file_urut) {
   nama_stasiun_bersih <- file_path_sans_ext(basename(file_path)) 
+  
+  # Ambil info kategori untuk ditampilkan di console
+  kategori_info <- tabel_rekap_urut$Kategori_Urutan[tabel_rekap_urut$nama == nama_stasiun_bersih]
   
   plot_stasiun <- buat_grafik_stasiun(file_path = file_path, nama_stasiun = nama_stasiun_bersih)
   list_semua_grafik[[nama_stasiun_bersih]] <- plot_stasiun
   
-  # Tambahkan informasi urutan di console agar mudah dipantau
-  cat("Memproses Plot:", nama_stasiun_bersih, "\n")
+  cat(sprintf("Memproses Plot: %-15s (Masuk Kategori Prioritas: %d)\n", nama_stasiun_bersih, kategori_info))
 }
 
 
 # Eksport menjadi Laporan PDF A4
 cat("\nMenyusun tata letak PDF. Harap tunggu sebentar...\n")
 
-# Proteksi 1: Cek apakah ada grafik yang berhasil dibuat
 if(length(list_semua_grafik) == 0) {
   stop("GAGAL: Tidak ada grafik yang terbentuk! Cek apakah file Excel stasiun kosong.")
 }
@@ -370,19 +411,17 @@ layout_pdf <- marrangeGrob(
   top = quote(paste("Verifikasi Peringatan DINI Tanggal", tgl_otomatis, "- Halaman", g, "dari", npages))
 )
 
-nama_pdf <- paste0(folder_plot, "Laporan_Curah_Hujan_", tgl_otomatis, ".pdf")
+nama_pdf <- paste0(folder_plot, "Verifikasi_Peringatan_Dini_", tgl_otomatis, ".pdf")
 
-# Proteksi 2: Matikan semua device grafik nyangkut sebelum mulai menulis
 graphics.off() 
 
-# Proteksi 3: TryCatch untuk memastikan file PDF selalu ditutup dengan dev.off()
 tryCatch({
   pdf(file = nama_pdf, width = 8.27, height = 11.69)
   print(layout_pdf)
-  invisible(dev.off()) # Menutup dan menyimpan file PDF
+  invisible(dev.off()) 
   
   cat("\n=======================================================\n")
-  cat("SELESAI TOTAL! Laporan PDF sudah terurut dari CH Tertinggi.\nLokasi File:\n")
+  cat("SELESAI TOTAL! Laporan PDF sudah terurut berdasarkan verifikasi.\nLokasi File:\n")
   cat(nama_pdf, "\n")
   cat("=======================================================\n")
   
