@@ -21,13 +21,13 @@ library(rosm)      # Engine di balik ggspatial untuk mengunduh tile peta
 file_shp_sumut <- "D:/Cuhar/SHP_Master/kabupaten_sumut.shp"
 file_shp_toba  <- "D:/Cuhar/SHP_Master/danau_toba.shp"
 file_stasiun   <- "D:/Cuhar/Stasiun1.xlsx"
-folder_angin   <- "D:/Cuhar/31May26"
-folder_simpan  <- "D:/Cuhar/31May26/plot"
+folder_angin   <- "D:/Cuhar/01Jun26"
+folder_simpan  <- "D:/Cuhar/01Jun26/plot"
 
 dir.create(folder_simpan, recursive = TRUE, showWarnings = FALSE)
 
 # VARIABEL TEKS TANGGAL UTAMA
-tanggal_teks <- "31 Mei 2026"
+tanggal_teks <- "1 Juni 2026"
 
 # Membaca shapefile dan menetapkan CRS (WGS 84)
 shp_sumut <- st_read(file_shp_sumut, quiet = TRUE)

@@ -66,7 +66,7 @@ daftar_stasiun <- data.frame(
 )
 
 # Masukkan tanggal Anda di sini
-tgl_otomatis <- "2026-05-31" 
+tgl_otomatis <- "2026-06-01" 
 tgl_awal <- tgl_otomatis    
 tgl_akhir <- tgl_otomatis
 
@@ -165,7 +165,7 @@ end_time   <- ymd_hms(paste0(tgl_besok, " 00:00:00"), tz = "UTC")
 zoom_start <- ymd_hms(paste0(tgl_otomatis, " 07:00:00"), tz = "Asia/Jakarta")
 zoom_end   <- ymd_hms(paste0(tgl_besok, " 07:00:00"), tz = "Asia/Jakarta") 
 
-# 2. MEMBACA OTOMATIS FILE TEKS PERINGATAN (DIPINDAH KE ATAS)
+# 2. MEMBACA OTOMATIS FILE TEKS PERINGATAN (TERMASUK UPDATE 3)
 file_teks1 <- paste0(folder_simpan, "peringatan.txt")
 if (file.exists(file_teks1)) { teks_peringatan1 <- paste(readLines(file_teks1, warn = FALSE), collapse = " ")
 } else { teks_peringatan1 <- ""; cat("Warning: peringatan.txt tidak ditemukan.\n") }
@@ -178,6 +178,11 @@ file_teks3 <- paste0(folder_simpan, "update2.txt")
 if (file.exists(file_teks3)) { teks_peringatan3 <- paste(readLines(file_teks3, warn = FALSE), collapse = " ")
 } else { teks_peringatan3 <- ""; cat("Warning: update2.txt tidak ditemukan.\n") }
 
+# PENAMBAHAN: Membaca Update 3
+file_teks4 <- paste0(folder_simpan, "update3.txt")
+if (file.exists(file_teks4)) { teks_peringatan4 <- paste(readLines(file_teks4, warn = FALSE), collapse = " ")
+} else { teks_peringatan4 <- ""; cat("Warning: update3.txt tidak ditemukan.\n") }
+
 # 3. FUNGSI EKSTRAKSI WAKTU OTOMATIS DARI TEKS
 ekstrak_waktu_peringatan <- function(teks, label_prefix) {
   if (teks == "") return(NULL)
@@ -186,7 +191,6 @@ ekstrak_waktu_peringatan <- function(teks, label_prefix) {
   pola_regex <- "pkl\\.?\\s*([0-9]{2}:[0-9]{2})"
   waktu_terekstrak <- str_match_all(tolower(teks), pola_regex)[[1]][,2]
   
-  # Pastikan R menemukan setidaknya 3 waktu dalam teks
   if (length(waktu_terekstrak) < 3) return(NULL)
   
   jam_rilis <- waktu_terekstrak[1]
@@ -197,10 +201,8 @@ ekstrak_waktu_peringatan <- function(teks, label_prefix) {
   mulai_pred_dt  <- ymd_hms(paste0(tgl_otomatis, " ", jam_mulai, ":00"), tz = "Asia/Jakarta")
   akhir_pred_dt  <- ymd_hms(paste0(tgl_otomatis, " ", jam_akhir, ":00"), tz = "Asia/Jakarta")
   
-  # Cerdas Lintas Hari: Jika jam mulai < jam rilis (misal rilis 23:50, mulai 00:10)
+  # Cerdas Lintas Hari
   if (mulai_pred_dt < waktu_rilis_dt) mulai_pred_dt <- mulai_pred_dt + days(1)
-  
-  # Cerdas Lintas Hari: Jika jam akhir < jam mulai (misal mulai 23:00, akhir 03:00)
   if (akhir_pred_dt < mulai_pred_dt) akhir_pred_dt <- akhir_pred_dt + days(1)
   
   label_rilis <- paste0(label_prefix, "\n", jam_rilis, " WIB")
@@ -214,45 +216,52 @@ ekstrak_waktu_peringatan <- function(teks, label_prefix) {
   ))
 }
 
-# 4. KAMUS ALIAS KECAMATAN PENCARIAN
-# (R akan menggunakan nama di sebelah kanan untuk mencari di teks peringatan dini notepad)
+# 4. MEMBUAT PARAMETER PERINGATAN DINI SECARA OTOMATIS
+row_peringatan1 <- ekstrak_waktu_peringatan(teks_peringatan1, "Peringatan Dini")
+row_peringatan2 <- ekstrak_waktu_peringatan(teks_peringatan2, "Update Ke-1")
+row_peringatan3 <- ekstrak_waktu_peringatan(teks_peringatan3, "Update Ke-2")
+row_peringatan4 <- ekstrak_waktu_peringatan(teks_peringatan4, "Update Ke-3") # PENAMBAHAN
+
+# 5. KAMUS ALIAS KECAMATAN PENCARIAN
 kamus_kecamatan <- c(
   "Aek Godang"   = "Batang Onang",
   "Bah Jambi"    = "Jawa Maraja Bah Jambi",
   "Sei_Rejo"     = "Sei Rampah",
   "Batubara"     = "Air Putih",
-  "Deli Serdang" = "Pagar Merbau",     # Untuk stasiun STA3032
-  "Deliserdang"  = "Medan Tembung",    # Untuk stasiun STA6005
+  "Deli Serdang" = "Pagar Merbau",     
+  "Deliserdang"  = "Medan Tembung",    
   "Sinabung"     = "Tiganderket",
   "Kualanamu"    = "Beringin",
   "Silangit"     = "Siborong-borong",
   "Tigaras"      = "Dolok Pardamean"
 )
 
-# 5. FUNGSI PEMBUAT GRAFIK
+# 6. FUNGSI PEMBUAT GRAFIK
 buat_grafik_stasiun <- function(file_path, nama_stasiun) {
   
-  # Menentukan kata kunci pencarian dinamis (Cek kamus kecamatan)
   kata_kunci <- nama_stasiun
   if (nama_stasiun %in% names(kamus_kecamatan)) {
     kata_kunci <- kamus_kecamatan[[nama_stasiun]]
   }
   
-  # PERBAIKAN: Tambahkan batas kata (\\b) agar R mencari kata/frasa yang persis (exact match)
   regex_kunci <- paste0("\\b", tolower(kata_kunci), "\\b")
   
-  # Cek keberadaan kata kunci yang sudah presisi di file teks
   ada_1 <- str_detect(tolower(teks_peringatan1), regex_kunci)
   ada_2 <- str_detect(tolower(teks_peringatan2), regex_kunci)
   ada_3 <- str_detect(tolower(teks_peringatan3), regex_kunci)
+  ada_4 <- str_detect(tolower(teks_peringatan4), regex_kunci) # PENAMBAHAN
   
+  # Gabungkan tabel jika peringatan ada di teks DAN jamnya berhasil diekstrak
   tabel_plot <- bind_rows(
-    if(ada_1) row_peringatan1 else NULL,
-    if(ada_2) row_peringatan2 else NULL,
-    if(ada_3) row_peringatan3 else NULL
+    if(ada_1 && !is.null(row_peringatan1)) row_peringatan1 else NULL,
+    if(ada_2 && !is.null(row_peringatan2)) row_peringatan2 else NULL,
+    if(ada_3 && !is.null(row_peringatan3)) row_peringatan3 else NULL,
+    if(ada_4 && !is.null(row_peringatan4)) row_peringatan4 else NULL # PENAMBAHAN
   )
   
-  if (nrow(tabel_plot) == 0) { tabel_plot <- row_peringatan1[0, ] }
+  if (nrow(tabel_plot) == 0) { 
+    tabel_plot <- data.frame(waktu_rilis = as.POSIXct(character()), mulai_pred = as.POSIXct(character()), akhir_pred = as.POSIXct(character()), label_rilis = character())
+  }
   
   data <- suppressMessages(read_excel(file_path))
   
@@ -308,10 +317,7 @@ buat_grafik_stasiun <- function(file_path, nama_stasiun) {
     geom_text(aes(x = with_tz(waktu_terakhir, "Asia/Jakarta"), y = total_akumulatif / scale_factor, label = paste0(round(total_akumulatif, 1), " mm")), color = "#d62728", fontface = "bold", size = 2.5, hjust = 1.1, vjust = -1, show.legend = FALSE) +
     scale_y_continuous(name = "CH /10 Menit (mm)", limits = c(0, batas_kiri), breaks = grid_kiri, expand = expansion(mult = c(0, 0.08)), sec.axis = sec_axis(~ . * scale_factor, name = "Akumulasi (mm)", breaks = grid_kanan)) +
     scale_x_datetime(date_breaks = "2 hours", date_labels = "%H:%M", expand = expansion(mult = c(0.02, 0.05)), timezone = "Asia/Jakarta") +
-    
-    # NAMA STASIUN TETAP MUNCUL DI JUDUL GRAFIK (Tidak berubah menjadi nama kecamatan)
     labs(title = toupper(nama_stasiun), x = "Waktu (WIB)", subtitle = NULL) +
-    
     scale_color_manual(name = "", values = c("Curah Hujan Per 10 Menit" = "#1f77b4", "Akumulatif Rainfall" = "#d62728"), drop = FALSE, guide = guide_legend(override.aes = list(linetype = c("solid", "solid"), shape = c(NA, NA), linewidth = c(1.5, 1.2)))) +
     coord_cartesian(xlim = c(zoom_start, zoom_end), clip = "off") + 
     theme_minimal() +
@@ -338,7 +344,9 @@ buat_grafik_stasiun <- function(file_path, nama_stasiun) {
   return(plot_final)
 }
 
-# 6. EKSEKUSI PENGUMPULAN GRAFIK & EXPORT PDF (URUT BERDASARKAN VERIFIKASI)
+# ==============================================================================
+# TAHAP 5: EKSEKUSI PENGUMPULAN GRAFIK & EXPORT PDF
+# ==============================================================================
 
 cat("\nMembaca file rekap dan mengecek status peringatan dini untuk penentuan urutan...\n")
 nama_file_rekap <- paste0(folder_simpan, "REKAP_Curah_Hujan_", tgl_otomatis, ".xlsx")
@@ -355,30 +363,25 @@ cek_peringatan <- function(nama_stasiun) {
   ada_1 <- str_detect(tolower(teks_peringatan1), regex_kunci)
   ada_2 <- str_detect(tolower(teks_peringatan2), regex_kunci)
   ada_3 <- str_detect(tolower(teks_peringatan3), regex_kunci)
+  ada_4 <- str_detect(tolower(teks_peringatan4), regex_kunci) # PENAMBAHAN
   
-  return(ada_1 | ada_2 | ada_3) # TRUE jika ada di salah satu teks
+  return(ada_1 | ada_2 | ada_3 | ada_4) # TRUE jika ada di salah satu teks
 }
 
 # Mengolah tabel rekap untuk menentukan kategori dan urutan
 tabel_rekap_urut <- tabel_rekap %>%
   mutate(
-    # Ganti NA menjadi 0 agar perhitungan tidak error
     RR_Maks_Harian = replace_na(RR_Maks_Harian, 0),
-    # Cek status peringatan dini untuk setiap baris stasiun
     Ada_Peringatan = sapply(nama, cek_peringatan),
-    # Buat Kategori Prioritas Verifikasi
     Kategori_Urutan = case_when(
-      RR_Maks_Harian > 0 ~ 1,                                # Prioritas 1: Ada hujan
-      RR_Maks_Harian == 0 & Ada_Peringatan == TRUE ~ 2,      # Prioritas 2: False Alarm (Ada peringatan, tidak hujan)
-      TRUE ~ 3                                               # Prioritas 3: Aman (Tidak peringatan, tidak hujan)
+      RR_Maks_Harian > 0 ~ 1,                                
+      RR_Maks_Harian == 0 & Ada_Peringatan == TRUE ~ 2,      
+      TRUE ~ 3                                               
     )
   ) %>%
-  # Mengurutkan berdasarkan Kategori (1 -> 2 -> 3), lalu Curah Hujan (Tertinggi -> Terendah)
   arrange(Kategori_Urutan, desc(RR_Maks_Harian))
 
-# Membuat daftar jalur (path) file Excel berdasarkan urutan yang sudah dibuat
 daftar_file_urut <- paste0(folder_simpan, tabel_rekap_urut$nama, ".xlsx")
-# Memastikan hanya memproses file yang benar-benar berhasil terunduh
 daftar_file_urut <- daftar_file_urut[file.exists(daftar_file_urut)]
 
 list_semua_grafik <- list()
@@ -387,7 +390,6 @@ cat("Mulai memproses pembuatan grafik sesuai prioritas verifikasi...\n")
 for (file_path in daftar_file_urut) {
   nama_stasiun_bersih <- file_path_sans_ext(basename(file_path)) 
   
-  # Ambil info kategori untuk ditampilkan di console
   kategori_info <- tabel_rekap_urut$Kategori_Urutan[tabel_rekap_urut$nama == nama_stasiun_bersih]
   
   plot_stasiun <- buat_grafik_stasiun(file_path = file_path, nama_stasiun = nama_stasiun_bersih)

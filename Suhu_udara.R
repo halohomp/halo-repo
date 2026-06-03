@@ -1,5 +1,6 @@
 # =====================================================================
 # SCRIPT VISUALISASI SUHU UDARA: 3 HARI (10 MENIT) - SORTING SUHU
+# (VERSI OTOMATIS LINTAS BULAN & LINTAS TAHUN)
 # =====================================================================
 
 # 1. Load Library
@@ -9,22 +10,42 @@ library(ggplot2)
 library(lubridate) 
 library(stringr)
 
-# 2. Pengaturan Direktori
-folder_sumber <- c(
-  "D:/Cuhar/29May26", 
-  "D:/Cuhar/30May26", 
-  "D:/Cuhar/31May26"
-)
-folder_simpan <- "D:/Cuhar/31May26/plot" 
+# =====================================================================
+# 2. PENGATURAN TANGGAL DINAMIS (ANTI-ERROR LINTAS BULAN)
+# =====================================================================
+
+# Tentukan tanggal TERAKHIR dari rentang 3 hari (Bisa ganti jadi Sys.Date() jika mau otomatis)
+# Contoh: Jika Anda ingin menarik data 30 Mei, 31 Mei, dan 1 Juni
+tgl_terakhir <- as.Date("2026-06-02") 
+
+# R otomatis menghitung 3 hari berurutan ke belakang dengan sangat akurat
+tgl_vektor <- seq(tgl_terakhir - 2, tgl_terakhir, by = "days")
+
+# MENGUNCI bahasa kalender ke "English" SEMENTARA agar format %b konsisten jadi "May", "Jun", dsb.
+Sys.setlocale("LC_TIME", "English") 
+
+# Membuat array 3 folder sumber secara otomatis (misal: "D:/Cuhar/30May26", "D:/Cuhar/31May26", "D:/Cuhar/01Jun26")
+folder_sumber <- paste0("D:/Cuhar/", format(tgl_vektor, "%d%b%y"))
+
+# Folder simpan dikunci HANYA di folder tanggal yang terakhir
+folder_simpan <- paste0("D:/Cuhar/", format(tgl_terakhir, "%d%b%y"), "/plot")
 dir.create(folder_simpan, recursive = TRUE, showWarnings = FALSE)
+
+# Kembalikan kalender ke Bahasa Indonesia untuk penulisan Subtitle Grafik nanti
+Sys.setlocale("LC_TIME", "Indonesian")
 
 target_stasiun_awal <- c("KNO", "Tigaras", "Silangit", "Aek Godang", "Sosa", "Hinai", "Bah Jambi")
 
-# 3. Membaca Seluruh Data dari 3 Folder
-message("Mengumpulkan data suhu udara beresolusi 10 menit (3 Hari)...")
+
+# =====================================================================
+# 3. MEMBACA SELURUH DATA DARI 3 FOLDER
+# =====================================================================
+message("Mengumpulkan data suhu udara beresolusi 10 menit lintas bulan...")
 daftar_file <- unlist(lapply(folder_sumber, function(dir) {
   list.files(path = dir, pattern = "\\.xlsx$", full.names = TRUE)
 }))
+
+if(length(daftar_file) == 0) stop("GAGAL: Tidak ada file Excel di ketiga folder tersebut.")
 
 all_temp_data <- data.frame()
 
@@ -43,9 +64,12 @@ for (f in daftar_file) {
   if (!is.null(tmp)) all_temp_data <- bind_rows(all_temp_data, tmp)
 }
 
-if(nrow(all_temp_data) == 0) stop("GAGAL: Tidak ada data yang berhasil dibaca.")
+if(nrow(all_temp_data) == 0) stop("GAGAL: Tidak ada data valid yang berhasil dibaca.")
 
-# 4. Pra-Pemrosesan 
+
+# =====================================================================
+# 4. PRA-PEMROSESAN & PENGURUTAN SUHU
+# =====================================================================
 data_suhu_kontinyu <- all_temp_data %>%
   filter(!is.na(tt_air_avg)) %>%
   mutate(
@@ -57,7 +81,6 @@ data_suhu_kontinyu <- all_temp_data %>%
   group_by(`Nama Stasiun`, Waktu_10m) %>%
   summarise(Suhu_Rata = mean(tt_air_avg, na.rm = TRUE), .groups = 'drop')
 
-# Pembersihan Nama Stasiun Super Akurat
 data_suhu_kontinyu <- data_suhu_kontinyu %>%
   mutate(
     Nama_Clean = case_when(
@@ -74,31 +97,31 @@ data_suhu_kontinyu <- data_suhu_kontinyu %>%
   filter(!is.na(Nama_Clean)) %>%
   mutate(`Nama Stasiun` = Nama_Clean) 
 
-# ==========================================================
-# FITUR BARU: Mengurutkan Stasiun dari Terpanas ke Terdingin
-# ==========================================================
 urutan_suhu <- data_suhu_kontinyu %>%
   group_by(`Nama Stasiun`) %>%
-  # Menghitung rata-rata suhu keseluruhan per stasiun
   summarise(Suhu_Keseluruhan = mean(Suhu_Rata, na.rm = TRUE)) %>%
-  # Mengurutkan dari nilai yang paling tinggi (descending)
   arrange(desc(Suhu_Keseluruhan)) %>%
   pull(`Nama Stasiun`)
 
-# Mengunci urutan array berdasarkan hasil sorting suhu
 data_suhu_kontinyu <- data_suhu_kontinyu %>%
   mutate(`Nama Stasiun` = factor(`Nama Stasiun`, levels = urutan_suhu))
 
 target_stasiun_urut <- as.character(urutan_suhu)
+message(">> Info: Urutan stasiun terpanas: ", paste(target_stasiun_urut, collapse = ", "))
 
-message(">> Info: Urutan stasiun dari terpanas ke terdingin adalah: ", paste(target_stasiun_urut, collapse = ", "))
 
-# 5. PENGATURAN BATAS WAKTU (Diperpanjang hingga 07:00 WIB)
-waktu_mulai   <- as.POSIXct("2026-05-29 07:00:00", tz = "Asia/Jakarta")
-waktu_selesai <- as.POSIXct("2026-06-01 07:00:00", tz = "Asia/Jakarta")
+# =====================================================================
+# 5. PENGATURAN BATAS WAKTU METEOROLOGI (DINAMIS LINTAS BULAN)
+# =====================================================================
+# Menghitung jam 07:00 pada tanggal awal (H-2) dan 07:00 pada tanggal akhir + 1 (besoknya)
+waktu_mulai   <- ymd_hms(paste0(tgl_vektor[1], " 07:00:00"), tz = "Asia/Jakarta")
+waktu_selesai <- ymd_hms(paste0(tgl_terakhir + 1, " 07:00:00"), tz = "Asia/Jakarta")
+
 garis_hari_meteorologi <- seq(waktu_mulai, waktu_selesai, by = "24 hours")
 
-# Algoritma Teks Sumbu X (Tanggal di Tengah, Jam 19:00)
+# Format string untuk teks subjudul (Contoh: "30 Mei - 01 Juni 2026")
+teks_periode <- paste(format(tgl_vektor[1], "%d %B"), "-", format(tgl_terakhir, "%d %B %Y"))
+
 label_waktu_tengah <- function(waktu_vektor) {
   hasil <- character(length(waktu_vektor))
   for (i in seq_along(waktu_vektor)) {
@@ -118,11 +141,13 @@ label_waktu_tengah <- function(waktu_vektor) {
   return(hasil)
 }
 
+
+# =====================================================================
 # 6. PEMBUATAN PDF MULTI-HALAMAN
+# =====================================================================
 lokasi_pdf <- file.path(folder_simpan, "Grafik_Suhu_3Hari_PerStasiun.pdf")
 pdf(file = lokasi_pdf, width = 11.69, height = 8.27)
 
-# Menggunakan target_stasiun_urut yang sudah di-sorting
 stasiun_chunks <- split(target_stasiun_urut, ceiling(seq_along(target_stasiun_urut) / 4))
 
 for (i in seq_along(stasiun_chunks)) {
@@ -153,7 +178,7 @@ for (i in seq_along(stasiun_chunks)) {
     
     labs(
       title = "Suhu Udara Berdasarkan Stasiun ARG, AWS dan AAWS SUMUT (Resolusi 10 Menit)",
-      subtitle = paste("Halaman", i, "| Periode: 29 - 31 Mei 2026 | Garis Vertikal: 07:00 WIB | Diurutkan dari Terpanas ke Terdingin"),
+      subtitle = paste("Halaman", i, "| Periode:", teks_periode, "| Garis Vertikal: 07:00 WIB | Diurutkan dari Terpanas ke Terdingin"),
       x = "Waktu Pengamatan (WIB)",
       y = "Suhu Udara (°C)"
     ) +
@@ -182,7 +207,7 @@ for (i in seq_along(stasiun_chunks)) {
   print(plot_halaman)
 }
 
-dev.off()
+invisible(dev.off())
 
 message("=========================================================")
-message("BERHASIL! Stasiun telah diurutkan berdasarkan suhu tertinggi, PDF tersimpan di: ", lokasi_pdf)
+message("BERHASIL! Stasiun diurutkan otomatis, PDF tersimpan di:\n", lokasi_pdf)
